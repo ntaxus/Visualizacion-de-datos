@@ -1,0 +1,384 @@
+---
+title: "DISCREPANCIA DE GÉNERO EN CIENCIA Y TECNOLOGÍA EN ARGENTINA"
+subtitle: "PRÁCTICA 2. VISUALIZACIÓN DE DATOS"
+author: "Nicolás Caruso"
+date: "Enero 2023"
+output:
+  html_document:
+    #css: style.css
+    toc: true
+    toc_float: true
+    toc_collapsed: true
+    toc_depth: 3
+    number_sections: false
+    theme: lumen
+  word_document:
+    toc: yes
+    toc_depth: '3'
+  pdf_document:
+    number_section: yes
+    toc: yes
+    toc_depth: 3
+lang: es
+---
+
+######################################################
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 14px;
+      text-align: justify;
+  }
+td {  /* Table  */
+  font-size: 12px;
+}
+h1.title {
+  font-size: 38px;
+  color: #000000;
+  --text-align: left;
+  background: none;
+}
+
+h3.subtitle { /* Header 3 */
+    font-size: 28px;
+    color: #000000;
+    --color: #1d6c86;
+}
+
+h1 { /* Header 1 */
+    font-size: 28px;
+    color: #1d6c86;
+    background: #d7f9f2;
+
+}
+
+h2 { /* Header 2 */
+    font-size: 24px;
+    color: #1d6c86;
+}
+h3 { /* Header 3 */
+    font-size: 20px;
+    color: #1d6c86;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+###############################################################
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+```{r, message=FALSE, results='hide', include=FALSE}
+## Packages used
+
+pkgs<-c('dplyr', 'tidyverse','plyr','reshape2','ggplot2','gridExtra', 'egg', 'plotly','kableExtra',
+        'webr', 'networkD3')
+
+
+new.pkgs <- pkgs[!(pkgs %in% installed.packages()[,"Package"])]
+if(length(new.pkgs)) install.packages(new.pkgs)
+
+lapply(pkgs, require, character.only = TRUE)
+```
+
+******
+# Descripción del conjunto de datos
+******
+## Justificación y relevancia
+
+El *set* elegido se trata de un conjunto de datos que detalla la composición y actividad del personal científico-técnico de Argentina. Incluye a todas las personas involucradas directamente en I+D (investigación y desarrollo) así como a aquellas que brindan servicios directos para las actividades de I + D (como gerentes de I + D, administradores, técnicos y personal de oficina). La elección fue primeramente profesional ya que yo formo parte del sistema científico argentino y me pareció interesante poder hacer un análisis de estos datos. Por otra parte, me parece que el set de datos se adecua bastante bien a lo requerido para la práctica y es lo suficientemente diverso para poder inspeccionar diferentes aspectos del dominio de los datos.
+</br>
+Respecto de la relevancia de los datos, y que también constituye una de las razones por las cuales me pareció interesante analizarlos, el *set* permite evaluar el nivel de participación de las mujeres en el ámbito de ciencia y técnica. Esto es sumamente relevante en el contexto actual donde constantemente se pone de manifiesto la desigualdad que tienen las mujeres para acceder a diferentes cargos, en relación a los hombres. Todo sistema científico debe bregar por la inclusión igualitaria de hombres y mujeres y por la igualdad de oportunidades de crecimiento para ambos. El set de datos elegido es el único y el más actualizado en esta materia para Argentina.
+
+
+## Complejidad y originalidad
+
+El set se conforma de varios subconjuntos de datos divididos por años (los años disponibles son desde 2011 hasta 2018). Para cada año, existen dos tablas con diferentes campos y que pueden ser enlazadas utilizando el campo IdPersona. Por otra parte, la mayoría de los campos se encuentran codificados en formato numérico y disponen de una tabla adicional que decodifica cada campo al valor in extenso correspondiente. Por lo que esto tendrá que ser tenido en cuenta al momento de procesar los datos. Algunos de los campos disponibles y que pueden ser de interés para el objetivo de esta práctica son 1 : número total de publicaciones (disgregado por tipo de publicación), nivel de seniority, edad, producción de patentes, dirección de proyectos, movilidad en el exterior, etc. El set contiene datos de tipo numérico (por ej., cantidad de publicaciones), datos categóricos (por ej., tipo de publicación), y datos booleanos (por ej., si dirigió o no proyectos). El total de registros disponibles es de ~68500.
+</br>
+Los datos se encuentran disponibles como libre acceso en el Portal de Información de Ciencia y Tecnología Argentino dependiente del Ministerio de Ciencia, Tecnología e Innovación de la Nación Argentina; por lo que se trata de datos oficiales. En este [*link*](https://www.datos.gob.ar/dataset/mincyt-personal-ciencia-tecnologia) puede verse el conjunto de datos.
+Desde mi punto de vista, este set de datos resulta innovador ya que, si bien los datos son públicos, no han sido utilizados aún para analizar la inequidad entre mujeres y hombres dentro del sistema científico argentino.
+
+# Análisis del conjunto de datos
+
+## Preguntas pasibles de ser abordadas con el presente *dataset*
+
+* ¿Existen más hombres que mujeres en las categorías más altas de investigadores?
+* ¿Las mujeres participan de igual manera en la dirección de proyectos?
+* ¿Los hombres publican más o menos que las mujeres? ¿La calidad de esas publicaciones es mayor?
+* ¿Los varones tienen más oportunidades para hacer estadías de investigación en el exterior que las mujeres?
+* ¿Hay una evolución año tras año para estos aspectos antes mencionados?
+
+
+## Proporción de mujeres/hombres en la muestra
+
+La muestra del presente set de datos está conformada por 28970 hombres (42%) y 39467 mujeres (58%).
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+# leo el archivo
+df <- read.csv("./final.csv", header=T)
+
+df$sexo_id<-as.factor(df$sexo_id)
+
+
+agg_tbl <- df %>% 
+  dplyr::filter(anio_id==2011) %>% #me quedo con un solo anio (la % es la misma todos los años)
+  dplyr::select(anio_id,sexo_id) %>%  #selecciono solo las columnas año y sexo
+  group_by(sexo_id) %>% # Variable to be transformed
+  count() %>%  
+  ungroup() %>% 
+  mutate(perc = `freq` / sum(`freq`)) %>%  #calculo el %
+  arrange(perc) %>%
+  mutate(labels = scales::percent(perc))
+
+# cambio los levels para el plot
+levels(agg_tbl$sexo_id) <- c("Mujer", "Hombre")
+
+#plot
+p1<-ggplot(agg_tbl, aes(x = "", y = perc, fill = sexo_id)) +
+  geom_col() +
+  geom_label(aes(label = labels),
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE) +
+  guides(fill = guide_legend(title = "Sexo")) +
+  coord_polar(theta = "y") + 
+ labs(title = "Distribución de género",
+       subtitle = "Porcentaje de hombres y mujeres que forman parte de la muestra")+
+  theme_void()
+
+p1
+
+```
+
+## Cantidad de publicaciones disgregadas
+
+Para este punto, y teniendo en cuenta la discrepancia en el número de mujeres vs. hombres en la muestra, decidí calcular la cántidad de publicaciones per capita.
+</br>
+</br>
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+agg_tbl2 <- df %>% 
+  dplyr::select(anio_id,sexo_id, produccion_cantidad_articulos_total) %>%  #selecciono solo las columnas año y sexo
+  group_by(anio_id, sexo_id) %>% # Variable to be transformed
+  dplyr::summarise (total_pub=sum(produccion_cantidad_articulos_total), total_count=n()) %>% 
+  mutate(perCap = `total_pub` / `total_count`)  #calculo cant pub per capita 
+
+# cambio los levels para el plot
+levels(agg_tbl2$sexo_id) <- c("Mujer", "Hombre")
+
+# paso a factor el año
+agg_tbl2$anio_id<-as.factor(agg_tbl2$anio_id)
+
+#calculo los estadisticos
+mean_muj<-mean(agg_tbl2$perCap[agg_tbl2$sexo_id=='Hombre'])
+sd_muj<-sd(agg_tbl2$perCap[agg_tbl2$sexo_id=='Hombre'])
+min_muj<-min(agg_tbl2$perCap[agg_tbl2$sexo_id=='Hombre'])
+max_muj<-max(agg_tbl2$perCap[agg_tbl2$sexo_id=='Hombre'])
+
+mean_hom<-mean(agg_tbl2$perCap[agg_tbl2$sexo_id=='Mujer'])
+sd_hom<-sd(agg_tbl2$perCap[agg_tbl2$sexo_id=='Mujer'])
+min_hom<-min(agg_tbl2$perCap[agg_tbl2$sexo_id=='Mujer'])
+max_hom<-max(agg_tbl2$perCap[agg_tbl2$sexo_id=='Mujer'])
+
+
+# armo la tabla de estadisticas descriptivas
+out <- data.frame(Estadísticos=c("promedio", "desv. estándar", "mín.", "máx."),
+Mujeres=c(round(mean_muj,2),round(sd_muj,2),round(min_muj,2),round(max_muj,2)),
+Hombres=c(round(mean_hom,2),round(sd_hom,2),round(min_hom,2),round(max_hom,2)))
+
+# 
+out %>% kable(caption = "Tabla de estadísticos descriptivos de la cantidad de publicaciones per capita comparado por género",
+              table.attr = "style='width:80%;'") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"), latex_options = 'HOLD_position')
+```
+
+
+El siguiente gráfico muestra la evolución temporal en el número de publicaciones per capita a lo largo de los años con datos disponibles en el *dataset* (2011 a 2018).
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+total_pubPerYear<-agg_tbl2%>%group_by(anio_id)%>%dplyr::summarise (total=sum(total_pub))
+
+
+p2<-ggplot(agg_tbl2, aes(y=perCap, x=anio_id)) + 
+  geom_col(aes(fill=sexo_id), position="dodge")+
+  geom_line(data = total_pubPerYear, mapping = aes(x=anio_id, y=total/50000, group = 1))+
+  geom_point(data = total_pubPerYear, mapping = aes(x=anio_id, y=total/50000))+ 
+  scale_y_continuous(sec.axis = sec_axis(~.*50000, name = "Publicaciones totales"))+
+  labs(x=' ', y='Publicaciones per capita', title = "Evolución en el número de publicaciones", subtitle = "Se muestra el número total y el número per capita disgregado por género, para el periodo 2011-2018")+
+  guides(fill=guide_legend(title="Género"))
+
+#ggplotly(p2) %>% layout(showlegend = FALSE)
+
+p2
+
+```
+
+Analizamos la misma información pero disgregada por categoría etaria.
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+# creo una nueva variable con las categorias de edad
+
+df<- df %>% dplyr::mutate(ageCat=case_when(edadCat=edad >= 18  & edad <= 30 ~ '18-30',
+                                        edad >= 31  & edad <= 40 ~ '31-40',
+                                        edad >= 41  & edad <= 50 ~ '41-50',
+                                        edad >= 51  & edad <= 60 ~ '51-60',
+                                        edad >= 61 ~ '>61',
+                                        edad==-1 ~ 'sin dato'))
+
+# hago una agregacion de los datos teniendo en cuenta esa nueva variable
+
+agg_tbl3 <- df %>% 
+  dplyr::select(ageCat,sexo_id, produccion_cantidad_articulos_total) %>%  #selecciono solo las columnas año y sexo
+  group_by(ageCat, sexo_id) %>% # Variable to be transformed
+  dplyr::summarise (total_pub=sum(produccion_cantidad_articulos_total), total_count=n()) %>% 
+  mutate(perCap = `total_pub` / `total_count`)  #calculo cant pub per capita
+
+
+# cambio los levels para el plot
+levels(agg_tbl3$sexo_id) <- c("Mujer", "Hombre")
+
+#ordeno los levels de ageCat para el plot
+
+agg_tbl3$ageCat <- factor(agg_tbl3$ageCat, levels=c('18-30', '31-40', '41-50','51-60','>61','sin dato'))
+
+
+p3<-ggplot(agg_tbl3[agg_tbl3$ageCat!='sin dato',], aes(y=perCap, x=ageCat)) + 
+  geom_col(aes(fill=sexo_id), position="dodge")+
+  labs(x=' ', y='Publicaciones per capita', title = "Número de publicaciones por edad", subtitle = "Se muestra el número de publiaciones per capita por género disgregado por grupo etario")+
+  guides(fill=guide_legend(title="Género"))
+
+p3
+```
+
+## Composición de género en las distintas categorías
+
+Otro aspecto que nos permite evaluar el *dataset*, es la composición de hombres/mujeres en las distintas categorías (crecientes) del personal de ciencia y técnica.
+</br>
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+agg_tbl4<-df %>% dplyr::select(categoria_conicet_id, sexo_id) %>% 
+  #tidyr::drop_na(categoria_conicet_id) %>%
+  dplyr::filter(categoria_conicet_id %in% c('1','2','3','4','5','6','7')) %>%
+  group_by(categoria_conicet_id, sexo_id) %>% 
+  summarise(n = n(), .groups = 'keep' )
+
+
+
+#cambio a factor
+agg_tbl4$sexo_id<-as.factor(agg_tbl4$sexo_id)
+agg_tbl4$categoria_conicet_id<- as.factor(agg_tbl4$categoria_conicet_id)
+
+# cambio los levels para el plot
+levels(agg_tbl4$sexo_id) <- c("Mujer", "Hombre")
+
+# cambio los levels para el plot
+levels(agg_tbl4$categoria_conicet_id) <- c("Asist.", "Adj.","Ind.",
+                                           "Prin.","Sup.","Bec. Doc.",
+                                           "Bec. Posd.")
+
+p4<-PieDonut(agg_tbl4,aes(categoria_conicet_id,sexo_id,count=n), 
+         showPieName = F, 
+         pieLabelSize = 3,
+         donutLabelSize =2.5, 
+         title = 'Composición de hombres/mujeres por categoría',
+         labelposition=3,labelpositionThreshold = 1)
+
+```
+
+
+Finalmente, podemos utilizar Sankey plots para evaluar el ascenso de categorías entre los años 2011 y 2018 para mujeres y hombres. 
+
+</br>
+
+Mujeres:
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+dfCatMuj<-df %>% dplyr::filter(anio_id %in% c(2011,2018)) %>% 
+  dplyr::filter(sexo_id ==1) %>% 
+  dplyr::select(persona_id, anio_id, cat=categoria_conicet_id) %>%
+  pivot_wider(names_from = anio_id, names_prefix = 'anio', values_from = cat) %>%
+  tidyr::drop_na() %>%
+  dplyr::filter(anio2011 != -1) %>%
+  dplyr::filter(anio2018 != -1)
+
+dfCatHom<-df %>% dplyr::filter(anio_id %in% c(2011,2018)) %>% 
+  dplyr::filter(sexo_id ==2) %>% 
+  dplyr::select(persona_id, anio_id, cat=categoria_conicet_id) %>%
+  pivot_wider(names_from = anio_id, names_prefix = 'anio', values_from = cat) %>%
+  tidyr::drop_na() %>%
+  dplyr::filter(anio2011 != -1) %>%
+  dplyr::filter(anio2018 != -1)
+
+
+
+## create a dataframe with 10 nodes
+nodes = data.frame("name" = c("BecDoc.", "Asist.", 'Adj.','Ind.', 'Prin.', 'Sup.','BecDoc.','BecPost.'))
+                              
+
+#### MUJERES ####
+
+## create edges with weights
+muj = as.data.frame(matrix(c(0, 1, 42.5, 
+                               0, 2, 8.2,
+                               0, 3, 0.5, 
+                               0, 4, 0.5, 
+                               0, 5, 0.5, 
+                               0, 6, 10.5, 
+                               0, 7, 39.2 
+                               ), byrow = TRUE, ncol = 3))
+
+## set column names for links
+names(muj) = c("source", "target", "value")
+
+
+## Draw Sankey Diagram
+p_muj = sankeyNetwork(Links = muj, Nodes = nodes,
+ Source = "source", Target = "target",
+ Value = "value", NodeID = "name",
+ fontSize = 16, nodeWidth = 40)
+p_muj
+```
+
+</br>
+Hombres:
+</br>
+
+```{r,fig.align='center',eval=TRUE,echo=FALSE}
+
+#### HOMBRES ####
+
+## create edges with weights
+hom = as.data.frame(matrix(c(0, 1, 43.45, 
+                               0, 2, 14.66,
+                               0, 3, 1.95, 
+                               0, 4, 0.5, 
+                               0, 5, 0.5, 
+                               0, 6, 0.5, 
+                               0, 7, 16.3 
+                               ), byrow = TRUE, ncol = 3))
+
+## set column names for links
+names(hom) = c("source", "target", "value")
+
+
+## Draw Sankey Diagram
+p_hom = sankeyNetwork(Links = hom, Nodes = nodes,
+ Source = "source", Target = "target",
+ Value = "value", NodeID = "name",
+ fontSize = 16, nodeWidth = 40)
+p_hom
+
+```
+
